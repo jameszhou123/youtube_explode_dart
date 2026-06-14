@@ -100,4 +100,22 @@ void main() {
         videoType: VideoType.shorts);
     expect(shorts, isNotEmpty);
   });
+
+  test('getUploadsFromPage populates title + duration (lockupViewModel parse)',
+      () async {
+    final page =
+        await yt!.channels.getUploadsFromPage('UCE6acMV3m35znLcf0JGNn7Q');
+    expect(page, isNotEmpty);
+    // The lockupViewModel migration left these fields empty while ids still
+    // parsed — so a bare `isNotEmpty` check passed even when every title was ''.
+    // Assert the fields actually come back, so a future layout shift can't
+    // silently re-break the parse.
+    final titled = page.where((v) => v.title.trim().isNotEmpty).length;
+    final timed =
+        page.where((v) => (v.duration ?? Duration.zero) > Duration.zero).length;
+    expect(titled, greaterThan(page.length ~/ 2),
+        reason: 'most videos should have a parsed title');
+    expect(timed, greaterThan(page.length ~/ 2),
+        reason: 'most videos should have a parsed duration');
+  });
 }

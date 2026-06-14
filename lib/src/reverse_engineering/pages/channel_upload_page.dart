@@ -232,20 +232,71 @@ class _InitialData extends InitialData {
     }
 
     if (isLockup) {
+      // As of 2026-06 YouTube serves channel "Videos" grids as lockupViewModel
+      // (not videoRenderer). Title/date/duration/views moved; the pre-lockup
+      // paths above return empty. Read them from the lockup layout instead.
+      const lockupRoot = 'metadata/lockupMetadataViewModel';
+      final metadataRows = video.getJson<List<dynamic>>(
+            '$lockupRoot/metadata/contentMetadataViewModel/metadataRows',
+          ) ??
+          const [];
+
+      // Drop members-only uploads. They're publicly listed but unplayable
+      // without a paid channel membership, so for an unauthenticated client
+      // they're dead entries. Keyed on the locale-independent badge style
+      // (badgeText is translated). [App-policy filter — omit for upstream.]
+      final isMembersOnly = metadataRows.any((row) =>
+          ((row as JsonMap?)?.getJson<List<dynamic>>('badges') ?? const [])
+              .any((b) =>
+                  (b as JsonMap?)
+                      ?.getJson<String>('badgeViewModel/badgeStyle') ==
+                  'BADGE_MEMBERS_ONLY'));
+      if (isMembersOnly) {
+        return null;
+      }
+
+      // The metadata row that holds the text parts is usually [views, date].
+      // The date part carries an accessibilityLabel; the views part does not —
+      // read each by that marker so a missing/reordered part can't swap them.
+      final metadataParts = metadataRows
+              .map((r) =>
+                  (r as JsonMap?)?.getJson<List<dynamic>>('metadataParts'))
+              .firstWhereOrNull((p) => p != null) ??
+          const [];
+      // Date is the LAST metadataPart carrying an accessibilityLabel. Layout is
+      // "views • date": views comes first and may or may not be labeled, but the
+      // relative date is always labeled and last. (firstWhere would wrongly grab
+      // a labeled view count on channels where YouTube labels both.)
+      final uploadDate = (metadataParts.lastWhereOrNull(
+                (p) => (p as JsonMap?)?['accessibilityLabel'] != null,
+              ) as JsonMap?)
+              ?.getJson<String>('text/content') ??
+          '';
+      // Views is best-effort (the first part) and must never throw the parse.
+      var views = 0;
+      final viewsText = (metadataParts.firstOrNull as JsonMap?)
+          ?.getJson<String>('text/content');
+      if (viewsText != null) {
+        try {
+          views = viewsText.parseInt() ?? 0;
+        } catch (_) {
+          views = 0;
+        }
+      }
       return ChannelVideo(
         VideoId(video.getJson<String>(
             'rendererContext/commandContext/onTap/innertubeCommand/watchEndpoint/videoId')!),
-        video.getJson<String>('metadata/primaryText/content') ?? '',
+        video.getJson<String>('$lockupRoot/title/content') ?? '',
         video
                 .getJson<String>(
-                    'imageOverlays/0/thumbnailOverlayTimeStatusRenderer/text/simpleText')
+                    'contentImage/thumbnailViewModel/overlays/0/thumbnailBottomOverlayViewModel/badges/0/thumbnailBadgeViewModel/text')
                 ?.toDuration() ??
             Duration.zero,
         video.getJson<String>(
-                'thumbnailViewModel/thumbnailViewModel/image/sources/0/url') ??
+                'contentImage/thumbnailViewModel/image/sources/0/url') ??
             '',
-        video.getJson<String>('metadata/metadataParts/1/text/content') ?? '',
-        video.getJson<String>('metadata/metadataText/content').parseInt() ?? 0,
+        uploadDate,
+        views,
       );
     }
 
