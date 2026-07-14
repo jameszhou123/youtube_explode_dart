@@ -146,6 +146,18 @@ class _InitialData extends InitialData {
   }
 
   SearchResult? _parseContent(JsonMap? content) {
+    // One malformed item must never abort the whole page parse: this is
+    // mapped over every result, so an uncaught throw here zeroes out the
+    // entire search instead of skipping one entry.
+    try {
+      return _parseContentUnguarded(content);
+    } catch (e) {
+      _logger.warning('Failed to parse search content item, skipping: $e');
+      return null;
+    }
+  }
+
+  SearchResult? _parseContentUnguarded(JsonMap? content) {
     if (content == null) {
       return null;
     }
@@ -175,9 +187,13 @@ class _InitialData extends InitialData {
                     .getJson<String>('viewCountText/simpleText')
                     ?.stripNonDigits()
                     .nullIfWhitespace ??
+                // Cast the runs list: on a dynamic element the getT extension
+                // doesn't apply and the call throws NoSuchMethodError. Live
+                // streams send viewCountText as runs ("4,161 watching").
                 renderer
                     .getJson<List<dynamic>>('viewCountText/runs')
-                    ?.firstOrNull
+                    ?.cast<Map<dynamic, dynamic>>()
+                    .firstOrNull
                     ?.getT<String>('text')
                     ?.stripNonDigits()
                     .nullIfWhitespace ??
@@ -195,7 +211,8 @@ class _InitialData extends InitialData {
           renderer.getJson<String>('publishedTimeText/simpleText'),
           renderer
                   .getJson<List<dynamic>>('viewCountText/runs')
-                  ?.elementAtSafe(1)
+                  ?.cast<Map<dynamic, dynamic>>()
+                  .elementAtSafe(1)
                   ?.getT<String>('text')
                   ?.trim() ==
               'watching',
@@ -239,10 +256,16 @@ class _InitialData extends InitialData {
                 ?.cast<Map<dynamic, dynamic>>()
                 .parseRuns() ??
             '',
+        // Cast before element access (getT on a dynamic element throws
+        // NoSuchMethodError — auto-generated "Topic" channels send
+        // videoCountText as runs, e.g. [{"text":"439"},{"text":" videos"}],
+        // and one such item killed the whole channel search). firstOrNull:
+        // an empty runs list must not throw either.
         renderer
                 .getJson<List<dynamic>>('videoCountText/runs')
-                ?.first
-                .getT<String>('text')
+                ?.cast<Map<dynamic, dynamic>>()
+                .firstOrNull
+                ?.getT<String>('text')
                 .parseInt() ??
             -1,
         (renderer.getJson<List<dynamic>>('thumbnail/thumbnails') ?? const [])
@@ -255,6 +278,82 @@ class _InitialData extends InitialData {
       final viewModel = content.getJson<JsonMap>('lockupViewModel')!;
 
       final type = viewModel.getT<String>('contentType');
+
+      // YouTube is migrating result items to lockupViewModel (channel grids
+      // and playlists already switched — see channel_upload_page.dart). As of
+      // 2026-07 search still serves classic renderers for videos/channels
+      // (verified live), but parse lockup-shaped ones too so results don't
+      // silently vanish from search when that flips. Paths mirror the channel
+      // uploads lockup parse; every field is best-effort.
+      if (type == 'LOCKUP_CONTENT_TYPE_VIDEO') {
+        const lockupRoot = 'metadata/lockupMetadataViewModel';
+        final videoId = viewModel.getT<String>('contentId');
+        if (videoId == null) {
+          return null;
+        }
+        final metadataParts = (viewModel.getJson<List<dynamic>>(
+                    '$lockupRoot/metadata/contentMetadataViewModel/metadataRows') ??
+                const [])
+            .expand((r) =>
+                (r as JsonMap?)?.getJson<List<dynamic>>('metadataParts') ??
+                const <dynamic>[])
+            .toList();
+        // The relative upload date is the LAST part carrying an
+        // accessibilityLabel (same heuristic as the channel-uploads fix).
+        final uploadDate = (metadataParts.lastWhereOrNull(
+          (p) => (p as JsonMap?)?['accessibilityLabel'] != null,
+        ) as JsonMap?)
+            ?.getJson<String>('text/content');
+        return SearchVideo(
+          VideoId(videoId),
+          viewModel.getJson<String>('$lockupRoot/title/content') ?? '',
+          (metadataParts.firstOrNull as JsonMap?)
+                  ?.getJson<String>('text/content') ??
+              '',
+          '',
+          viewModel.getJson<String>(
+                  'contentImage/thumbnailViewModel/overlays/0/thumbnailBottomOverlayViewModel/badges/0/thumbnailBadgeViewModel/text') ??
+              viewModel.getJson<String>(
+                  'contentImage/thumbnailViewModel/overlays/0/thumbnailOverlayBadgeViewModel/thumbnailBadges/0/thumbnailBadgeViewModel/text') ??
+              '',
+          0,
+          (viewModel.getJson<List<dynamic>>(
+                      'contentImage/thumbnailViewModel/image/sources') ??
+                  const [])
+              .cast<Map<String, dynamic>>()
+              .map((e) => Thumbnail(Uri.parse(_absoluteUrl(e['url'] as String)),
+                  e['height'] ?? 0, e['width'] ?? 0))
+              .toList(),
+          uploadDate,
+          false,
+          viewModel.getJson<String>(
+                  '$lockupRoot/image/decoratedAvatarViewModel/rendererContext/commandContext/onTap/innertubeCommand/browseEndpoint/browseId') ??
+              '',
+        );
+      }
+      if (type == 'LOCKUP_CONTENT_TYPE_CHANNEL') {
+        const lockupRoot = 'metadata/lockupMetadataViewModel';
+        final channelId = viewModel.getT<String>('contentId');
+        if (channelId == null) {
+          return null;
+        }
+        final sources = viewModel.getJson<List<dynamic>>(
+                'contentImage/thumbnailViewModel/image/sources') ??
+            viewModel.getJson<List<dynamic>>(
+                'contentImage/decoratedAvatarViewModel/avatar/avatarViewModel/image/sources') ??
+            const [];
+        return SearchChannel(
+          ChannelId(channelId),
+          viewModel.getJson<String>('$lockupRoot/title/content') ?? '',
+          '',
+          -1,
+          sources
+              .cast<Map<String, dynamic>>()
+              .map((e) => Thumbnail(Uri.parse(_absoluteUrl(e['url'] as String)),
+                  e['height'] ?? 0, e['width'] ?? 0))
+              .toList(),
+        );
+      }
       if (type != 'LOCKUP_CONTENT_TYPE_PLAYLIST') {
         return null;
       }
@@ -280,4 +379,8 @@ class _InitialData extends InitialData {
     // Here ignore 'horizontalCardListRenderer' & 'shelfRenderer'
     return null;
   }
+
+  /// Lockup image sources can be protocol-relative (`//yt3.ggpht.com/...`).
+  static String _absoluteUrl(String url) =>
+      url.startsWith('//') ? 'https:$url' : url;
 }

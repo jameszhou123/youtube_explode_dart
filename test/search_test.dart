@@ -39,7 +39,17 @@ void main() {
   test('Search only channels', () async {
     final channels = await yt!.search
         .searchContent('PewDiePie', filter: TypeFilters.channel);
+    // Regression guard: auto-generated "Topic" channels send videoCountText
+    // as a runs array, which used to throw (extension method on a dynamic
+    // element) and abort the whole page parse — every channel search
+    // returned an error instead of results. everyElement alone passes on an
+    // empty list, so also assert results exist and are actually populated.
+    expect(channels, isNotEmpty);
     expect(channels, everyElement(isA<SearchChannel>()));
+    for (final channel in channels.cast<SearchChannel>()) {
+      expect(channel.id.value, isNotEmpty);
+      expect(channel.name, isNotEmpty);
+    }
   });
 
   test('Search only playlists', () async {
