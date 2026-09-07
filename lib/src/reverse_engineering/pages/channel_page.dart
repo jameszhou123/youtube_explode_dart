@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:html/parser.dart' as parser;
 
 import '../../exceptions/exceptions.dart';
@@ -110,12 +111,27 @@ class _InitialData extends InitialData {
 
   _InitialData(super.root);
 
+  /// Text parts of the 2026 `pageHeaderViewModel` metadata rows
+  /// (handle, subscriber count, video count), in order; empty on old layouts.
+  Iterable<String> _pageHeaderMetadataParts() {
+    final rows = root.getJson<List<dynamic>>(
+            'header/pageHeaderRenderer/content/pageHeaderViewModel/metadata/contentMetadataViewModel/metadataRows') ??
+        const [];
+    return rows
+        .expand((r) =>
+            (r as JsonMap?)?.getJson<List<dynamic>>('metadataParts') ??
+            const [])
+        .map((p) => (p as JsonMap?)?.getJson<String>('text/content'))
+        .nonNulls;
+  }
+
   int? get subscribersCount {
     final renderer = root.getJson<JsonMap>('header/c4TabbedHeaderRenderer');
-    if (renderer?['subscriberCountText'] == null) {
-      return null;
-    }
-    final subText = renderer?.getJson<String>('subscriberCountText/simpleText');
+    var subText = renderer?.getJson<String>('subscriberCountText/simpleText');
+    // As of 2026 the channel header is a pageHeaderViewModel; the count lives
+    // in its metadata rows as a text part like "5.21M subscribers".
+    subText ??= _pageHeaderMetadataParts()
+        .firstWhereOrNull((t) => t.contains('subscriber'));
     if (subText == null) {
       return null;
     }

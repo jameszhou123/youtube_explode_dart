@@ -70,18 +70,42 @@ class _InitialData extends InitialData {
   _InitialData(super.root);
 
   JsonMap _getContentContext() {
-    final tabs = root.getJson<List<dynamic>>(
-        'contents/twoColumnBrowseResultsRenderer/tabs')!;
+    final legacy = _legacyAboutRenderer();
+    if (legacy != null) {
+      return legacy;
+    }
+    // As of 2026 the About tab no longer ships channelAboutFullMetadataRenderer
+    // (the about sheet is loaded on demand). The page-level
+    // channelMetadataRenderer still carries title, description and avatar, so
+    // expose those through the legacy shape and leave the rest null.
+    final meta = root.getJson<JsonMap>('metadata/channelMetadataRenderer');
+    if (meta == null) {
+      throw FatalFailureException('Failed to get channel about context.', 0);
+    }
+    return <String, dynamic>{
+      'title': {'simpleText': meta['title']},
+      'description': {'simpleText': meta['description']},
+      'avatar': meta['avatar'],
+    };
+  }
+
+  JsonMap? _legacyAboutRenderer() {
+    final tabs = root
+        .getJson<List<dynamic>>('contents/twoColumnBrowseResultsRenderer/tabs');
+    if (tabs == null) {
+      return null;
+    }
     final tabWithContent =
-        tabs.firstWhere((e) => e['tabRenderer']?['content'] != null) as JsonMap;
+        tabs.firstWhereOrNull((e) => e['tabRenderer']?['content'] != null)
+            as JsonMap?;
     final sectionContents = tabWithContent
-        .getJson<JsonMap>('tabRenderer/content/sectionListRenderer')!
-        .getJson<List<dynamic>>('contents')!;
-    final firstSection = sectionContents.firstOrNull! as JsonMap;
+        ?.getJson<JsonMap>('tabRenderer/content/sectionListRenderer')
+        ?.getJson<List<dynamic>>('contents');
+    final firstSection = sectionContents?.firstOrNull as JsonMap?;
     final itemContents =
-        firstSection.getJson<List<dynamic>>('itemSectionRenderer/contents')!;
-    final firstItem = itemContents.firstOrNull! as JsonMap;
-    return firstItem.getJson<JsonMap>('channelAboutFullMetadataRenderer')!;
+        firstSection?.getJson<List<dynamic>>('itemSectionRenderer/contents');
+    final firstItem = itemContents?.firstOrNull as JsonMap?;
+    return firstItem?.getJson<JsonMap>('channelAboutFullMetadataRenderer');
   }
 
   late final String? description =
@@ -135,7 +159,8 @@ class _InitialData extends InitialData {
   late final String title = content.getJson<String>('title/simpleText')!;
 
   late final List<JsonMap> avatar =
-      content.getJson<List<dynamic>>('avatar/thumbnails')!.cast<JsonMap>();
+      content.getJson<List<dynamic>>('avatar/thumbnails')?.cast<JsonMap>() ??
+          const [];
 
   late final String? country = content.getJson<String>('country/simpleText');
 
