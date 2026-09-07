@@ -6,7 +6,11 @@ enum VideoType {
   normal('videos', 'videoRenderer'),
 
   /// Youtube shorts video
-  shorts('shorts', 'shortsLockupViewModel');
+  shorts('shorts', 'shortsLockupViewModel'),
+
+  /// Live streams tab: ongoing live streams first, then ended streams.
+  /// Upcoming (scheduled) streams are skipped since they are not playable yet.
+  streams('streams', 'videoRenderer');
 
   final String name;
 

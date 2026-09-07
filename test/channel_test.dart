@@ -101,6 +101,33 @@ void main() {
     expect(shorts, isNotEmpty);
   });
 
+  test('getUploadsFromPage streams tab returns ended live streams', () async {
+    final page = await yt!.channels.getUploadsFromPage(
+        'UCE6acMV3m35znLcf0JGNn7Q',
+        videoType: VideoType.streams);
+    expect(page, isNotEmpty);
+    // Ended streams parse like normal uploads: title + duration populated,
+    // isLive false. Ongoing streams (isLive) have no duration by definition.
+    final ended = page.where((v) => !v.isLive).toList();
+    expect(ended, isNotEmpty);
+    expect(ended.where((v) => v.title.trim().isNotEmpty).length,
+        greaterThan(ended.length ~/ 2));
+    expect(
+        ended
+            .where((v) => (v.duration ?? Duration.zero) > Duration.zero)
+            .length,
+        greaterThan(ended.length ~/ 2));
+  });
+
+  test('getUploadsFromPage streams tab is empty for a channel without one',
+      () async {
+    // Latte ASMR has no Streams tab; YouTube serves the home tab instead.
+    final page = await yt!.channels.getUploadsFromPage(
+        'UCQe2Y7V-C9bNMAcCJCBvzQQ',
+        videoType: VideoType.streams);
+    expect(page, isEmpty);
+  });
+
   test('getUploadsFromPage populates title + duration (lockupViewModel parse)',
       () async {
     final page =

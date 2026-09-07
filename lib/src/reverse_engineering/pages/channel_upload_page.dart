@@ -83,8 +83,18 @@ class _InitialData extends InitialData {
       );
       final selectedTab = tabs
           ?.map((e) => e['tabRenderer'])
-          .cast<JsonMap>()
+          .cast<JsonMap?>()
+          .nonNulls
           .firstWhereOrNull((e) => e['selected'] as bool? ?? false);
+      // When a channel has no tab of the requested type (e.g. no Streams tab)
+      // YouTube serves its home tab instead. That is "no uploads of this
+      // type", not a broken page.
+      final selectedUrl = selectedTab?.getJson<String>(
+              'endpoint/commandMetadata/webCommandMetadata/url') ??
+          '';
+      if (selectedTab != null && !selectedUrl.endsWith('/${type.name}')) {
+        return const [];
+      }
       var render = selectedTab?.getJson<JsonMap>('content');
 
       if (render != null) {
@@ -199,7 +209,7 @@ class _InitialData extends InitialData {
       video = content.getJson<JsonMap>(
         'richItemRenderer/content/${type.youtubeRenderText}',
       );
-      if (video == null && type == VideoType.normal) {
+      if (video == null && type != VideoType.shorts) {
         video = content
             .getJson<JsonMap>('richItemRenderer/content/lockupViewModel');
         if (video != null &&
@@ -246,8 +256,8 @@ class _InitialData extends InitialData {
       // they're dead entries. Keyed on the locale-independent badge style
       // (badgeText is translated). [App-policy filter — omit for upstream.]
       final isMembersOnly = metadataRows.any((row) =>
-          ((row as JsonMap?)?.getJson<List<dynamic>>('badges') ?? const [])
-              .any((b) =>
+          ((row as JsonMap?)?.getJson<List<dynamic>>('badges') ?? const []).any(
+              (b) =>
                   (b as JsonMap?)
                       ?.getJson<String>('badgeViewModel/badgeStyle') ==
                   'BADGE_MEMBERS_ONLY'));
@@ -268,8 +278,8 @@ class _InitialData extends InitialData {
       // relative date is always labeled and last. (firstWhere would wrongly grab
       // a labeled view count on channels where YouTube labels both.)
       final uploadDate = (metadataParts.lastWhereOrNull(
-                (p) => (p as JsonMap?)?['accessibilityLabel'] != null,
-              ) as JsonMap?)
+            (p) => (p as JsonMap?)?['accessibilityLabel'] != null,
+          ) as JsonMap?)
               ?.getJson<String>('text/content') ??
           '';
       // Views is best-effort (the first part) and must never throw the parse.
@@ -283,20 +293,30 @@ class _InitialData extends InitialData {
           views = 0;
         }
       }
+      // The thumbnail badge carries the duration for ended videos and a
+      // locale-independent LIVE style for ongoing streams (text is "LIVE").
+      final badge = video.getJson<JsonMap>(
+          'contentImage/thumbnailViewModel/overlays/0/thumbnailBottomOverlayViewModel/badges/0/thumbnailBadgeViewModel');
+      final isLive = badge?.getT<String>('badgeStyle') ==
+          'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE';
+      final duration =
+          badge?.getT<String>('text')?.toDuration() ?? Duration.zero;
+      // Streams tab: neither live nor a finished VOD means an upcoming
+      // (scheduled) stream, which is not playable yet.
+      if (type == VideoType.streams && !isLive && duration == Duration.zero) {
+        return null;
+      }
       return ChannelVideo(
         VideoId(video.getJson<String>(
             'rendererContext/commandContext/onTap/innertubeCommand/watchEndpoint/videoId')!),
         video.getJson<String>('$lockupRoot/title/content') ?? '',
-        video
-                .getJson<String>(
-                    'contentImage/thumbnailViewModel/overlays/0/thumbnailBottomOverlayViewModel/badges/0/thumbnailBadgeViewModel/text')
-                ?.toDuration() ??
-            Duration.zero,
+        duration,
         video.getJson<String>(
                 'contentImage/thumbnailViewModel/image/sources/0/url') ??
             '',
         uploadDate,
         views,
+        isLive: isLive,
       );
     }
 

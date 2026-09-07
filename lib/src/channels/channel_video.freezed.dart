@@ -34,6 +34,9 @@ mixin _$ChannelVideo {
   /// Video view count.
   int get videoViews;
 
+  /// Whether this is an ongoing live stream (streams tab only).
+  bool get isLive;
+
   /// Create a copy of ChannelVideo
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -57,16 +60,17 @@ mixin _$ChannelVideo {
             (identical(other.videoUploadDate, videoUploadDate) ||
                 other.videoUploadDate == videoUploadDate) &&
             (identical(other.videoViews, videoViews) ||
-                other.videoViews == videoViews));
+                other.videoViews == videoViews) &&
+            (identical(other.isLive, isLive) || other.isLive == isLive));
   }
 
   @override
   int get hashCode => Object.hash(runtimeType, videoId, videoTitle,
-      videoDuration, videoThumbnail, videoUploadDate, videoViews);
+      videoDuration, videoThumbnail, videoUploadDate, videoViews, isLive);
 
   @override
   String toString() {
-    return 'ChannelVideo(videoId: $videoId, videoTitle: $videoTitle, videoDuration: $videoDuration, videoThumbnail: $videoThumbnail, videoUploadDate: $videoUploadDate, videoViews: $videoViews)';
+    return 'ChannelVideo(videoId: $videoId, videoTitle: $videoTitle, videoDuration: $videoDuration, videoThumbnail: $videoThumbnail, videoUploadDate: $videoUploadDate, videoViews: $videoViews, isLive: $isLive)';
   }
 }
 
@@ -82,7 +86,8 @@ abstract mixin class $ChannelVideoCopyWith<$Res> {
       Duration videoDuration,
       String videoThumbnail,
       String videoUploadDate,
-      int videoViews});
+      int videoViews,
+      bool isLive});
 
   $VideoIdCopyWith<$Res> get videoId;
 }
@@ -105,6 +110,7 @@ class _$ChannelVideoCopyWithImpl<$Res> implements $ChannelVideoCopyWith<$Res> {
     Object? videoThumbnail = null,
     Object? videoUploadDate = null,
     Object? videoViews = null,
+    Object? isLive = null,
   }) {
     return _then(_self.copyWith(
       videoId: null == videoId
@@ -131,6 +137,10 @@ class _$ChannelVideoCopyWithImpl<$Res> implements $ChannelVideoCopyWith<$Res> {
           ? _self.videoViews
           : videoViews // ignore: cast_nullable_to_non_nullable
               as int,
+      isLive: null == isLive
+          ? _self.isLive
+          : isLive // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 
@@ -149,7 +159,8 @@ class _$ChannelVideoCopyWithImpl<$Res> implements $ChannelVideoCopyWith<$Res> {
 
 class _ChannelVideo implements ChannelVideo {
   const _ChannelVideo(this.videoId, this.videoTitle, this.videoDuration,
-      this.videoThumbnail, this.videoUploadDate, this.videoViews);
+      this.videoThumbnail, this.videoUploadDate, this.videoViews,
+      {this.isLive = false});
 
   /// Video ID.
   @override
@@ -176,6 +187,11 @@ class _ChannelVideo implements ChannelVideo {
   @override
   final int videoViews;
 
+  /// Whether this is an ongoing live stream (streams tab only).
+  @override
+  @JsonKey()
+  final bool isLive;
+
   /// Create a copy of ChannelVideo
   /// with the given fields replaced by the non-null parameter values.
   @override
@@ -199,16 +215,17 @@ class _ChannelVideo implements ChannelVideo {
             (identical(other.videoUploadDate, videoUploadDate) ||
                 other.videoUploadDate == videoUploadDate) &&
             (identical(other.videoViews, videoViews) ||
-                other.videoViews == videoViews));
+                other.videoViews == videoViews) &&
+            (identical(other.isLive, isLive) || other.isLive == isLive));
   }
 
   @override
   int get hashCode => Object.hash(runtimeType, videoId, videoTitle,
-      videoDuration, videoThumbnail, videoUploadDate, videoViews);
+      videoDuration, videoThumbnail, videoUploadDate, videoViews, isLive);
 
   @override
   String toString() {
-    return 'ChannelVideo(videoId: $videoId, videoTitle: $videoTitle, videoDuration: $videoDuration, videoThumbnail: $videoThumbnail, videoUploadDate: $videoUploadDate, videoViews: $videoViews)';
+    return 'ChannelVideo(videoId: $videoId, videoTitle: $videoTitle, videoDuration: $videoDuration, videoThumbnail: $videoThumbnail, videoUploadDate: $videoUploadDate, videoViews: $videoViews, isLive: $isLive)';
   }
 }
 
@@ -226,7 +243,8 @@ abstract mixin class _$ChannelVideoCopyWith<$Res>
       Duration videoDuration,
       String videoThumbnail,
       String videoUploadDate,
-      int videoViews});
+      int videoViews,
+      bool isLive});
 
   @override
   $VideoIdCopyWith<$Res> get videoId;
@@ -251,6 +269,7 @@ class __$ChannelVideoCopyWithImpl<$Res>
     Object? videoThumbnail = null,
     Object? videoUploadDate = null,
     Object? videoViews = null,
+    Object? isLive = null,
   }) {
     return _then(_ChannelVideo(
       null == videoId
@@ -277,6 +296,10 @@ class __$ChannelVideoCopyWithImpl<$Res>
           ? _self.videoViews
           : videoViews // ignore: cast_nullable_to_non_nullable
               as int,
+      isLive: null == isLive
+          ? _self.isLive
+          : isLive // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 

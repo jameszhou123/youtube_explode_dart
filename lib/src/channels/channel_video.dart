@@ -25,6 +25,9 @@ abstract class ChannelVideo with _$ChannelVideo {
     String videoUploadDate,
 
     /// Video view count.
-    int videoViews,
-  ) = _ChannelVideo;
+    int videoViews, {
+
+    /// Whether this is an ongoing live stream (streams tab only).
+    @Default(false) bool isLive,
+  }) = _ChannelVideo;
 }

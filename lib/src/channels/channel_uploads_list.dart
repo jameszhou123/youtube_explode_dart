@@ -47,7 +47,7 @@ class ChannelUploadsList extends BasePagedList<Video> {
               ThumbnailSet(e.videoId.value),
               null,
               Engagement(e.videoViews, null, null),
-              false,
+              e.isLive,
             ),
           )
           .toList(),
