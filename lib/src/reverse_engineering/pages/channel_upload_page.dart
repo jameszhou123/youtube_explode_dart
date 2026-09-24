@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:html/parser.dart' as parser;
+import 'package:logging/logging.dart';
 
 import '../../channels/channel_video.dart';
 import '../../channels/video_type.dart';
@@ -72,7 +73,22 @@ class _InitialData extends InitialData {
     if (content.isEmpty) {
       return const <ChannelVideo>[];
     }
-    return content.map(_parseContent).nonNulls.toList();
+    return content.map(_parseContentGuarded).nonNulls.toList();
+  }
+
+  static final _logger = Logger('YoutubeExplode.Channel.Uploads');
+
+  // One malformed item must never abort the whole page parse: this is mapped
+  // over every item on a channel tab, so an uncaught throw here (a missing
+  // videoId on a new item shape, say) empties the whole Videos or Streams
+  // list instead of skipping one entry. Same guard as search_page.dart.
+  ChannelVideo? _parseContentGuarded(JsonMap? content) {
+    try {
+      return _parseContent(content);
+    } catch (e) {
+      _logger.warning('Failed to parse channel upload item, skipping: $e');
+      return null;
+    }
   }
 
   List<JsonMap> getContentContext() {
