@@ -182,7 +182,12 @@ extension StringUtility2 on String? {
       return null;
     }
 
-    final qty = int.parse(parts.first);
+    // Never throw: the caller maps a whole channel page through this, so one
+    // unparseable date used to abort every item on the page.
+    final qty = int.tryParse(parts.first);
+    if (qty == null) {
+      return null;
+    }
 
     // Try to get the unit
     final unit = parts[1];
@@ -195,9 +200,11 @@ extension StringUtility2 on String? {
       _ when unit.startsWith('week') => Duration(days: qty * 7),
       _ when unit.startsWith('month') => Duration(days: qty * 30),
       _ when unit.startsWith('year') => Duration(days: qty * 365),
-      _ => throw StateError("Couldn't parse $unit unit of time. "
-          'Please report this to the project page!')
+      _ => null,
     };
+    if (time == null) {
+      return null;
+    }
 
     return DateTime.now().subtract(time);
   }
